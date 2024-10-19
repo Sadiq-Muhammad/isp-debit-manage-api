@@ -23,9 +23,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-m6z9!h)+2muwilpyq-#@xv0gl422%*vjhg6cwo*iu#&1v-1j3x'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = False
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['sadmoos.ddns.net', '0.0.0.0', '127.0.0.1']
 
 
 # Application definition
@@ -43,6 +43,12 @@ INSTALLED_APPS = [
     # Custom apps
     'customers',
 ]
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework.authentication.BasicAuthentication',
+    ),
+}
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',

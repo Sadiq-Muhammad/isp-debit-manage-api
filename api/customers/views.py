@@ -1,3 +1,4 @@
+import json
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -7,6 +8,7 @@ from .models import Customer, Owner, Payment
 from .serializers import CustomerSerializer
 from django.utils import timezone
 from django.db.models import Sum
+
 
 def fetch_user_data(username, password):
     # Step 1: Get the token
@@ -22,7 +24,8 @@ def fetch_user_data(username, password):
     )
 
     if token_response.status_code != 200:
-        raise Exception(f'Failed to fetch token with status code: {token_response.status_code}')
+        raise Exception(
+            f'Failed to fetch token with status code: {token_response.status_code}')
 
     cookies = token_response.json()
     token = f"{cookies['token_type']} {cookies['access_token']}"
@@ -34,14 +37,17 @@ def fetch_user_data(username, password):
     )
 
     if user_response.status_code != 200:
-        raise Exception(f'Failed to fetch user data with status code: {user_response.status_code}')
+        raise Exception(
+            f'Failed to fetch user data with status code: {user_response.status_code}')
 
     data = user_response.json()
 
     # Extract relevant fields
-    account_price_value = int(data['accountPrice']['value'].replace(',', '').rstrip('IQD'))
+    account_price_value = int(
+        data['accountPrice']['value'].replace(',', '').rstrip('IQD'))
     exp_date_str = data['accountExpirationDate']['value']
-    exp_date = datetime.strptime(exp_date_str[:-1].strip(), '%d/%m/%Y %H:%M:%S')
+    exp_date = datetime.strptime(
+        exp_date_str[:-1].strip(), '%d/%m/%Y %H:%M:%S')
 
     return {
         "name": data['fullName']['value'],
@@ -52,15 +58,23 @@ def fetch_user_data(username, password):
         "exp_date": exp_date,
     }
 
+
 class CustomerViewSet(viewsets.ModelViewSet):
     queryset = Customer.objects.all()
     serializer_class = CustomerSerializer
 
     def create(self, request, *args, **kwargs):
-        username = request.data.get('username')
-        password = request.data.get('password')
-        owner_name = request.data.get('owner')
+        try:
+            # Manually parse the '_content' field
+            body_unicode = request.data.get('_content')
+            body = json.loads(body_unicode)
 
+            username = body.get('username')
+            password = body.get('password')
+            owner_name = body.get('owner')
+        except (json.JSONDecodeError, TypeError):
+            return Response({'error': 'Invalid JSON format'}, status=status.HTTP_400_BAD_REQUEST)
+        
         # Check if owner exists in the database
         try:
             owner = Owner.objects.get(name=owner_name)
@@ -83,7 +97,8 @@ class CustomerViewSet(viewsets.ModelViewSet):
             agent_name=user_data['agent_name'],
             account_name=user_data['account_name'],
             account_price=user_data['account_price'],
-            debt_amount=user_data['account_price'],  # Initial debt is the account price
+            # Initial debt is the account price
+            debt_amount=user_data['account_price'],
             exp_date=user_data['exp_date']
         )
         customer.save()
@@ -101,7 +116,8 @@ class CustomerViewSet(viewsets.ModelViewSet):
         owner_name = request.query_params.get('owner')
         username = request.query_params.get('username')
         name = request.query_params.get('name')
-        agent_name = request.query_params.get('agent_name')  # New parameter for filtering by agent name
+        # New parameter for filtering by agent name
+        agent_name = request.query_params.get('agent_name')
 
         # Check if the owner is provided
         if not owner_name:
@@ -132,13 +148,18 @@ class CustomerViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-
     @action(detail=False, methods=['post'])
     def update_info(self, request):
-        # Retrieve owner and username from request data
-        owner_name = request.data.get('owner')
-        username = request.data.get('username')
-        password = request.data.get('password')
+        try:
+            # Manually parse the '_content' field
+            body_unicode = request.data.get('_content')
+            body = json.loads(body_unicode)
+
+            username = body.get('username')
+            password = body.get('password')
+            owner_name = body.get('owner')
+        except (json.JSONDecodeError, TypeError):
+            return Response({'error': 'Invalid JSON format'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Validate that both owner and username are provided
         if not owner_name or not username:
@@ -190,7 +211,8 @@ class CustomerViewSet(viewsets.ModelViewSet):
             if customer.exp_date < timezone.now():
                 # Fetch new user data from external API
                 try:
-                    user_data = fetch_user_data(customer.username, customer.password)
+                    user_data = fetch_user_data(
+                        customer.username, customer.password)
                     new_exp_date = user_data['exp_date']
                     account_price = user_data['account_price']
                 except Exception as e:
@@ -211,8 +233,16 @@ class CustomerViewSet(viewsets.ModelViewSet):
         """
         Register a payment for a specific customer identified by username.
         """
-        owner_name = request.data.get('owner')
-        user_name = request.data.get('username')
+        try:
+            # Manually parse the '_content' field
+            body_unicode = request.data.get('_content')
+            body = json.loads(body_unicode)
+
+            owner_name = request.data.get('owner')
+            user_name = request.data.get('username')
+        except (json.JSONDecodeError, TypeError):
+            return Response({'error': 'Invalid JSON format'}, status=status.HTTP_400_BAD_REQUEST)
+        
 
         # Validate owner
         try:
@@ -230,14 +260,14 @@ class CustomerViewSet(viewsets.ModelViewSet):
         try:
             customer.debt_amount -= int(payment_amount)
             customer.save()
-            
+
             Payment.objects.create(customer=customer, amount=payment_amount)
-            
+
         except ValueError:
             return Response({'error': 'Invalid payment amount'}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response({'status': 'payment registered', 'new_debt_amount': customer.debt_amount}, status=status.HTTP_200_OK)
-    
+
     @action(detail=False, methods=['get'])
     def get_payments(self, request):
         owner_name = request.query_params.get('owner')
@@ -257,7 +287,7 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
         # Retrieve payment records for the customer
         payments = Payment.objects.filter(customer=customer)
-        
+
         # Serialize payments
         payment_data = [{
             "amount": payment.amount,
@@ -266,7 +296,6 @@ class CustomerViewSet(viewsets.ModelViewSet):
 
         return Response(payment_data, status=status.HTTP_200_OK)
 
-    
     @action(detail=False, methods=['get'])
     def retrieve_unique_agents(self, request):
         """
@@ -284,10 +313,11 @@ class CustomerViewSet(viewsets.ModelViewSet):
             return Response({'error': 'Owner does not exist'}, status=status.HTTP_400_BAD_REQUEST)
 
         # Get distinct agent names for the specific owner
-        unique_agents = Customer.objects.filter(owner=owner).values_list('agent_name', flat=True).distinct()
+        unique_agents = Customer.objects.filter(
+            owner=owner).values_list('agent_name', flat=True).distinct()
 
         return Response({"unique_agents": list(unique_agents)}, status=status.HTTP_200_OK)
-    
+
     @action(detail=False, methods=['get'])
     def owner_statistics(self, request):
         owner_name = request.query_params.get('owner')
@@ -308,10 +338,12 @@ class CustomerViewSet(viewsets.ModelViewSet):
         # Calculate statistics
         total_customers = customers.count()
         customers_in_debt = customers.filter(debt_amount__gt=0).count()
-        total_debt = customers.aggregate(total_debt=Sum('debt_amount'))['total_debt'] or 0
+        total_debt = customers.aggregate(total_debt=Sum('debt_amount'))[
+            'total_debt'] or 0
 
         # Retrieve all payments for the customers of the given owner
-        total_payments = Payment.objects.filter(customer__owner=owner).aggregate(total_payment=Sum('amount'))['total_payment'] or 0
+        total_payments = Payment.objects.filter(customer__owner=owner).aggregate(
+            total_payment=Sum('amount'))['total_payment'] or 0
 
         # Return the statistics
         return Response({
