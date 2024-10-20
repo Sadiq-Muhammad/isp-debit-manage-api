@@ -8,15 +8,8 @@ class Owner(models.Model):
 
 class Customer(models.Model):
     username = models.CharField(max_length=150, primary_key=True)
-    password = models.CharField(max_length=128)  # Store hashed passwords in production
     owner = models.ForeignKey(Owner, on_delete=models.CASCADE)
-    name = models.CharField(max_length=255)
-    mobile_number = models.CharField(max_length=15)
-    agent_name = models.CharField(max_length=255)
-    account_name = models.CharField(max_length=255)
-    account_price = models.IntegerField(default=0)
     debt_amount = models.IntegerField(default=0)
-    exp_date = models.DateTimeField()
 
     def __str__(self):
         return self.username

@@ -3,8 +3,8 @@ from .models import Customer, Owner
 
 @admin.register(Customer)
 class CustomerAdmin(admin.ModelAdmin):
-    list_display = ('username', 'name', 'owner', 'mobile_number', 'account_name', 'account_price', 'debt_amount', 'exp_date')
-    search_fields = ('username', 'name', 'mobile_number')
+    list_display = ('username', 'owner', 'debt_amount')
+    search_fields = ('username',)
 
 @admin.register(Owner)
 class OwnerAdmin(admin.ModelAdmin):
